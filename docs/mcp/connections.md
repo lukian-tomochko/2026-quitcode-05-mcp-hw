@@ -1,0 +1,61 @@
+# Підключення MCP-серверів LeadDesk (Task B)
+
+- **Акаунти** (особисті чи одноразові, без клієнтських організацій і команд): Supabase — особистий
+  акаунт, один порожній одноразовий проєкт · Vercel — особистий акаунт, проєкт у команді з одним
+  учасником (я) · Figma — особистий акаунт на плані Starter, місце Full, власна команда
+- **Третій сервер:** Figma — чому саме він: потрібно було прочитати змінні дизайну з власного макета,
+  а ще Figma показує випадок, де сервер звузити нічим (єдиний OAuth-скоуп `mcp:connect`), тож усе тримається
+  на deny з боку клієнта. Бюджет мінімальний: двох викликів вистачило (`whoami`, який у ліміт не рахується,
+  і `get_variable_defs`).
+- **Vercel CLI на цій машині:** не встановлено (`command -v vercel` нічого не знаходить), тож
+  `use_vercel_cli` нікуди не веде, а `vercel whoami` нічого не покаже.
+
+## Сервери
+
+| Сервер | Який доступ | Навіщо нам | Що станеться при компрометації | Чим саме звужено |
+|---|---|---|---|---|
+| `supabase` | Один одноразовий проєкт (`project_ref` в URL); групи `database`, `development`, `docs`. У `/mcp` видно 9 інструментів, зокрема `execute_sql` і `apply_migration` (обидва позначені як destructive). `execute_sql` ходить під роллю `postgres` (`is_superuser = off`), тобто не під роллю, яку ми обрали самі | Міграція схеми й сид 20 лідів для Task C | Той, хто має токен, читає, змінює й видаляє все в цьому проєкті, створює таблиці, бачить publishable-ключі. Тут це 20 синтетичних лідів; у клієнтському проєкті це були б їхні персональні дані. Інші проєкти акаунта недосяжні | `project_ref` прив'язує всі інструменти до одного проєкту; `features=database,development,docs` без `account`, `functions` і `branching`. `read_only=true` свідомо не ставили, бо `apply_migration` потрібен. В `allow` лише `search_docs`, `list_tables`, `list_migrations`; `execute_sql` і `apply_migration` щоразу схвалюються вручну |
+| `vercel` | OAuth-токен усього користувача Vercel (єдиний скоуп `openid`): усі проєкти й команди, до яких має доступ цей логін. У `/mcp` видно 244 інструменти. Перша спроба `list_deployments` дала 403: токен авторизовано на інший скоуп, ніж той, де лежить проєкт, тож довелося пройти вхід заново й обрати потрібний скоуп | Лог білду останнього деплою | Токен дозволяє деплоїти, купувати платні плани й домени, писати в листування toolbar, а через `use_vercel_cli` і `Bash` — ще й `env`, `rollback`, `promote`, `rm`, якби CLI тут був залогінений. Права токена не звузити: URL і скоуп цього не дають | Звуження лише на боці Claude Code: deny на 11 інструментів, що змінюють стан (`buy_pro`, `buy_credits`, `buy_addon`, `buy_domain`, `deploy_to_vercel`, `get_access_to_vercel_url`, `import-claude-design-from-url` і чотири toolbar-інструменти), в `allow` лише `list_deployments`, `get_deployment`, `get_deployment_build_logs`. Vercel CLI на машині не встановлено |
+| `figma` | OAuth-скоуп `mcp:connect` — повний доступ до файлів цього акаунта; план Starter, місце Full, власна команда. У `/mcp` видно 40 інструментів | Змінні дизайну з власного макета (`get_variable_defs`) | Токен читає й пише в усі файли акаунта: створює файли, завантажує зображення, запускає Weave-моделі. Звузити на сервері нічим, а deny захищає лише цей клієнт | Deny на 14 записуючих інструментів: чотири обов'язкові (`use_figma`, `create_new_file`, `upload_assets`, `generate_diagram`) і ще десять (`generate_figma_design`, `add_code_connect_map`, `send_code_connect_mappings`, `create_shader`, `update_shader`, `create_generative_plugin`, `update_generative_plugin`, `weave_upload_asset`, `weave_run_model`, `weave_run_tool`). Жоден інструмент Figma не в `allow`: кожен виклик питає дозволу |
+
+## Supabase: схема й сид
+
+- Міграція `supabase/migrations/0001_leaddesk.sql` створює таблиці: `leads` (`id`, `full_name`, `company`,
+  `email`, `source`, `status` з `check` на п'ять значень, `budget` nullable, `message`, `created_at`).
+  У базі міграція збережена під іменем `leaddesk`: `apply_migration` сам задає версію, тож назва
+  файлу в репозиторії не збігається
+- Сид `supabase/seed/leads.sql`: 20 рядків, `lead_0001`–`lead_0020`, ті самі, що в `materials/leads.json`
+  (я звірив усі дев'ять колонок кожного рядка розбором SQL: розбіжностей немає; `budget = null` у `lead_0006`, `lead_0012`, `lead_0018`)
+- Скільки інструментів Supabase видно в `/mcp` із вашим URL: 9
+- Якими викликами створено схему й дані і що ви схвалювали вручну: перед записом агент перевірив
+  схему (`list_tables`, він в `allow`); далі `apply_migration` (створення `leads`) і `execute_sql`
+  (один `insert` на 20 рядків) — на кожен я відповів у чаті «так» після того, як агент пояснив, що
+  зміниться; потім два `execute_sql` на читання: `select count(*) from leads` дав 20, а
+  `select current_user, session_user, current_setting('is_superuser')` дав `postgres`, `postgres`, `off`.
+  Усього за сесію було 7 викликів Supabase MCP
+- RLS не вмикали: таблиця в схемі `public` без RLS доступна через публічний API з publishable-ключем.
+  Це відомий компроміс на одноразовому проєкті із синтетичними даними (деталі — у threat model)
+
+## Сесії: що вмикаємо разом
+
+У кожній сесії — щонайбільше один сервер із правом запису; браузерний сервер — ніколи разом із Supabase.
+
+| Крок | Увімкнено в `/mcp` | Сервер із правом запису в цій сесії |
+|---|---|---|
+| Перший вхід у всі три сервери | усі три (агенту нічого не писали) | — |
+| Міграція й сид | `supabase` | `supabase` |
+| Лог білду | `vercel` | —, записуючі інструменти під deny |
+| Токени з Figma: знімки «до» і «після», `whoami`, `get_variable_defs` | `figma` | —, записуючі інструменти під deny |
+
+## До і після звуження: третій сервер
+
+- Як отримали перелік: нова сесія, у `/mcp` лише `figma`, запит «Перелічи всі інструменти сервера figma, які тобі зараз доступні. Нічого не викликай»; джерело — відповідь агента, а не лічильник у `/mcp`
+- `docs/mcp/evidence/mcp-before.txt`: 40 інструментів
+- `docs/mcp/evidence/mcp-after.txt`: 26 інструментів; зникли рівно 14, і це точно ті, що в deny:
+  `use_figma`, `create_new_file`, `upload_assets`, `generate_diagram`, `generate_figma_design`,
+  `add_code_connect_map`, `send_code_connect_mappings`, `create_shader`, `update_shader`,
+  `create_generative_plugin`, `update_generative_plugin`, `weave_upload_asset`, `weave_run_model`,
+  `weave_run_tool`. Нових інструментів у «після» немає; `get_variable_defs` і `whoami` лишилися
+- Між знімками один раз зникло з'єднання з сервером (збій DNS на моїй машині), і сервер довелося
+  перепідключити; лише після перепідключення зняли знімок «після», щоб не отримати нуль інструментів
+  через розрив зв'язку
