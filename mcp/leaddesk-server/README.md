@@ -24,6 +24,17 @@ node src/server.mjs        # waits for MCP messages on stdin; the log goes to st
 `LEADDESK_FIXTURE=/path/to/leads.json` points the server at another fixture file.
 Do not use `console.log` in `src/`: stdout is the protocol channel.
 
+## Run over HTTP (optional, Task E1)
+
+```bash
+node src/http.mjs          # http://127.0.0.1:3333/mcp, loopback only
+```
+
+`src/http.mjs` uses the same factory (`src/factory.mjs`) as the stdio entry point. It calls
+`localhostHostValidation()` and `localhostOriginValidation()` itself before the handler: a forged `Host` or
+`Origin` gets 403. There is no authentication, so never bind it to anything but `127.0.0.1`.
+This mode needs `@modelcontextprotocol/node` (pinned in `package.json`).
+
 ## Check with MCP Inspector
 
 From the repository root (Git Bash). Every call starts the server anew, so the state is clean each time.
