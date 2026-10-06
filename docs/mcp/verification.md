@@ -5,11 +5,26 @@
 
 ## Task A — сервер в Inspector
 
-- **Команди, якими зроблено чотири файли в `docs/mcp/`:** рівно ті, що в walkthrough (Task A, крок 4),
-  з кореня репозиторію в Git Bash, `npx -y @modelcontextprotocol/inspector@2.8.0 --cli node mcp/leaddesk-server/src/server.mjs …`:
-  `--method tools/list` → `tools-list.json`; `--method tools/call --tool-name leaddesk_set_lead_status`
-  (`leadId=lead_0002`, `status=contacted`) → `set-status.json`; той самий інструмент із `leadId=nope`
-  → `bad-input.json`; `--method resources/read --uri leaddesk://reference/statuses` → `resource-read.json`.
+- **Команди, якими зроблено чотири файли в `docs/mcp/`:** рівно ті, що в walkthrough (Task A, крок 4), з кореня
+  репозиторію в Git Bash. Кожен виклик Inspector'а запускає сервер заново, тож стан щоразу чистий:
+
+  ```bash
+  npx -y @modelcontextprotocol/inspector@2.8.0 --cli node mcp/leaddesk-server/src/server.mjs \
+    --method tools/list > docs/mcp/tools-list.json
+
+  npx -y @modelcontextprotocol/inspector@2.8.0 --cli node mcp/leaddesk-server/src/server.mjs \
+    --method tools/call --tool-name leaddesk_set_lead_status \
+    --tool-arg leadId=lead_0002 --tool-arg status=contacted --tool-arg "reason=перевірка в Inspector" > docs/mcp/set-status.json
+
+  npx -y @modelcontextprotocol/inspector@2.8.0 --cli node mcp/leaddesk-server/src/server.mjs \
+    --method tools/call --tool-name leaddesk_set_lead_status \
+    --tool-arg leadId=nope --tool-arg status=won --tool-arg reason=ok > docs/mcp/bad-input.json; echo "exit=$?"   # exit=5
+
+  npx -y @modelcontextprotocol/inspector@2.8.0 --cli node mcp/leaddesk-server/src/server.mjs \
+    --method resources/read --uri leaddesk://reference/statuses > docs/mcp/resource-read.json
+  ```
+
+  Команда для `bad-input.json` завершилась з **`exit=5`**, як і має бути для `isError: true`.
   Перед цим я прогнав усі шляхи сервера окремо (список, успіх, «той самий статус», невідомий лід) — вивід
   лишився поза репозиторієм.
 - **`tools-list.json`:** рівно два інструменти. `leaddesk_find_leads` — `{"readOnlyHint":true}`,
@@ -64,7 +79,9 @@
   зафіксував.
 - **Figma:** `whoami` — план Starter, місце Full, власна команда (особистий акаунт); цей виклик у ліміт не
   рахується. Токени — з власного файлу, фрейм `node-id=1-2`, інструмент `get_variable_defs`:
-  `docs/mcp/evidence/figma-tokens.json` — три колір-змінні. Назви мають вигляд `brand/brand/primary`,
+  `docs/mcp/evidence/figma-tokens.json` — три колір-змінні; сама відповідь інструмента (аргументи виклику й сирий
+  результат, ключ файлу замасковано) лежить поруч у `docs/mcp/evidence/figma-get_variable_defs-response.json`,
+  і її текст дає той самий об'єкт, що `figma-tokens.json`. Назви мають вигляд `brand/brand/primary`,
   бо колекція змінних теж зветься `brand`; стиль тексту `Heading/H1` у відповідь не потрапив, бо
   `get_variable_defs` віддає лише змінні. Усього витрачено 2 виклики з 20 на місяць.
 - **Playwright:** не використовували (обрано Figma).

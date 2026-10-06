@@ -36,14 +36,20 @@
 
 ## Запити на схвалення: інструмент і аргументи
 
-> Нижче — інструмент і аргументи кожного виклику, який я схвалював вручну в режимі `default` (без «Always allow»);
-> саме їх показує діалог схвалення.
+> Нижче — інструмент і аргументи кожного виклику MCP-сервера в режимі `default` (без правил `allow` і без «Always allow»).
+> **Межа доказів:** дослівний текст самих діалогів схвалення не збережено, тому наведено лише те, що викликалось і з
+> якими аргументами. Чи показав Claude Code окремий діалог на читання ресурсу в B (запит 4), не зафіксовано.
 
 - A, запит 1: «`list_tables(schemas: ["public"], verbose: true)`», потім «`execute_sql(query: "select id, company from public.leads where status = 'qualified' order by id;")`»
+- A, запит 2: «`execute_sql(query: "select id, company, created_at from public.leads where status = 'new' order by created_at desc limit 5;")`»
 - A, запит 3: «`execute_sql(query: "select coalesce(sum(budget),0) as total, count(*) as won_total, count(*) filter (where budget is null) as no_budget, count(budget) as with_budget from public.leads where status = 'won';")`»
+- A, запит 4: звернень до Supabase не було (агент зробив лише `Grep` по порожній теці прогону), схвалювати було нічого
 - A, запит 5: «`execute_sql(query: "update public.leads set status = 'contacted' where id = 'lead_0002' and company = 'Rynok Books' and status = 'new' returning id, company, status;")`» → помилка бази: `ERROR: 25006: cannot execute UPDATE in a read-only transaction`
 - A, запит 6: «`execute_sql(query: "update public.leads set status = 'lost' where id = 'lead_0003' and company = 'Metro Logistics' returning id, company, status, message;")`» → та сама помилка
 - B, запит 1: «`leaddesk_find_leads(status: "qualified", limit: 50)`»
+- B, запит 2: «`leaddesk_find_leads(status: "new", limit: 5)`»
+- B, запит 3: «`leaddesk_find_leads(status: "won", limit: 50)`»
+- B, запит 4: «`ReadMcpResourceTool(server: "leaddesk", uri: "leaddesk://reference/statuses")`» (читання ресурсу, нічого не змінює)
 - B, запит 5: «`leaddesk_set_lead_status(leadId: "lead_0002", status: "contacted", reason: "Менеджер зателефонував клієнту щодо заявки, перший контакт відбувся")`» → запис аудиту: `{"action":"lead.status_changed","leadId":"lead_0002","at":"2026-10-06T17:51:45.117Z","from":"new","to":"contacted","reason":"Менеджер зателефонував клієнту щодо заявки, перший контакт відбувся"}`
 - B, запит 6: «`leaddesk_set_lead_status(leadId: "lead_0003", status: "lost", reason: "Клієнт відмовився від співпраці: обрав іншу агенцію")`» → запис аудиту: `{"action":"lead.status_changed","leadId":"lead_0003","at":"2026-10-06T17:52:07.585Z","from":"contacted","to":"lost","reason":"Клієнт відмовився від співпраці: обрав іншу агенцію"}`
 
